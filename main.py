@@ -1,15 +1,50 @@
+# Torch environment
 import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from torchvision import datasets, transforms
+from torchvision.models import resnet34 as torchvision_resnet34
+from torch.utils.data import DataLoader, Subset, random_split, TensorDataset
+
 import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from collections import defaultdict
 import yaml
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Device: {device}")
 
 print(torch.__version__)
-class CL():
+# ==== 1. Replay Buffer with per-class exemplar cap ====  
+class ReplayBuffer():
+    def __init__(self, max_per_class=1000):
+        self.max_per_class = max_per_class # maximum exemplars per each class
+        self.buffer = defaultdict(list) # buffer as a dict for each class
+    
+    def add_examples(self, x_batch, y_batch):
+        for x, y in zip(x_batch, y_batch):
+            cls = int(y.item())
+            lst = self.buffer[cls]
+            lst.append(x.detach().cpu())
+            # FIFO replacement
+            if len(lst) > self.max_per_class:
+                lst.pop(0)
+            self.buffer[cls] = lst
+            
+    def get_all_data(self):
+        xs, ys = [], []
+        for cls, examples in self.buffer.items():
+            xs.append(torch.stack(examples))
+            ys.append(torch.full((len(examples), ), cls, dtype=torch.long))
+        
+        if not xs:
+            return None, None
+        return torch.cat(xs, dim=0),torch.cat(ys, dim=0)
+    
+    
     def save_graph(self, rewards_per_episode, epsilon_history):
         # Save plots
         fig = plt.figure(1)
