@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 from torchvision import datasets, transforms
 from torchvision.models import resnet34 as torchvision_resnet34
@@ -44,7 +45,19 @@ class ReplayBuffer():
             return None, None
         return torch.cat(xs, dim=0),torch.cat(ys, dim=0)
     
-    
+    # ==== 1. iCaRL buffer with memory budget memory_size ====
+class iCaRLBuffer:
+    def __init__(self, memory_size):
+        self.memory_size = memory_size # maximum buffer size
+        self.exemplar_sets = defaultdict(list) # class_id -> list of exemplar tensors
+        self.seen_classes = set()
+
+    def construct_exemplar_set(self, class_id, features, images, m):
+        features = F.normalize(features, dim=1)  # important for cosine-based similarity
+        class_mean = features.mean(0)
+        # unsqueeze(0) to create a new dimension at position 0
+        class_mean = F.normalize(class_mean.unsqueeze(0), dim=1)  # shape: [1, D]
+        
     def save_graph(self, rewards_per_episode, epsilon_history):
         # Save plots
         fig = plt.figure(1)
@@ -70,6 +83,7 @@ class ReplayBuffer():
         # Save plots
         fig.savefig(self.GRAPH_FILE)
         plt.close(fig)
+    
         
 # Main function
 if __name__ == '__main__':
